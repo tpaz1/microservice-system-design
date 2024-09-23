@@ -25,10 +25,10 @@ def connect_to_postgresql(retries=5, delay=5):
                 port=int(os.environ.get("POSTGRES_PORT")),
                 cursor_factory=RealDictCursor,  # Return results as dictionaries
             )
-            print(f"Connected to PostgreSQL on attempt {attempt + 1}")
+            print(f"Connected to PostgreSQL on attempt {attempt + 1}", flush=True)
             break
         except psycopg2.OperationalError as e:
-            print(f"Failed to connect to PostgreSQL (attempt {attempt + 1}/{retries}): {e}")
+            print(f"Failed to connect to PostgreSQL (attempt {attempt + 1}/{retries}): {e}", flush=True)
             if attempt < retries - 1:
                 time.sleep(delay)
             else:

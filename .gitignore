@@ -1,3 +1,5 @@
 # Ignore all venv directories
 venv/
 *.env
+*.DS_Store
+*.mp4
