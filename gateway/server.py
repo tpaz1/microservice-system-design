@@ -48,20 +48,6 @@ def connect_to_rabbitmq(retries=5, delay=5):
 
     return connection
 
-# Connect to MongoDB
-mongo_client_videos = connect_to_mongodb()
-mongo_client_mp3s = connect_to_mongodb()
-
-mongo_video_db = mongo_client_videos.videos
-mongo_mp3_db = mongo_client_mp3s.mp3s
-
-fs_videos = gridfs.GridFS(mongo_video_db)
-fs_mp3s = gridfs.GridFS(mongo_mp3_db)
-
-# Connect to RabbitMQ
-connection = connect_to_rabbitmq()
-channel = connection.channel()
-
 
 @server.route("/login", methods=["POST"])
 def login():
@@ -123,4 +109,17 @@ def download():
 
 
 if __name__ == "__main__":
+    # Connect to MongoDB
+    mongo_client_videos = connect_to_mongodb()
+    mongo_client_mp3s = connect_to_mongodb()
+    
+    mongo_video_db = mongo_client_videos.videos
+    mongo_mp3_db = mongo_client_mp3s.mp3s
+    
+    fs_videos = gridfs.GridFS(mongo_video_db)
+    fs_mp3s = gridfs.GridFS(mongo_mp3_db)
+    
+    # Connect to RabbitMQ
+    connection = connect_to_rabbitmq()
+    channel = connection.channel()
     server.run(host="0.0.0.0", port=8080)
