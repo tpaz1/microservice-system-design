@@ -1,4 +1,7 @@
-import jwt, datetime, os
+import jwt
+import datetime
+import os
+import time
 from flask import Flask, request
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -8,18 +11,36 @@ server = Flask(__name__)
 # Global variable to hold the database connection
 db_connection = None
 
+# Retry mechanism for PostgreSQL connection
+def connect_to_postgresql(retries=5, delay=5):
+    """Establish a connection to the PostgreSQL database with retry logic."""
+    connection = None
+    for attempt in range(retries):
+        try:
+            connection = psycopg2.connect(
+                host=os.environ.get("POSTGRES_HOST"),
+                user=os.environ.get("POSTGRES_USER"),
+                password=os.environ.get("POSTGRES_PASSWORD"),
+                dbname=os.environ.get("POSTGRES_DB"),
+                port=int(os.environ.get("POSTGRES_PORT")),
+                cursor_factory=RealDictCursor,  # Return results as dictionaries
+            )
+            print(f"Connected to PostgreSQL on attempt {attempt + 1}")
+            break
+        except psycopg2.OperationalError as e:
+            print(f"Failed to connect to PostgreSQL (attempt {attempt + 1}/{retries}): {e}")
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise Exception("Failed to connect to PostgreSQL after multiple attempts")
+
+    return connection
+
 
 def init_db():
     """Initialize the database connection and store it globally."""
     global db_connection
-    db_connection = psycopg2.connect(
-        host=os.environ.get("POSTGRES_HOST"),
-        user=os.environ.get("POSTGRES_USER"),
-        password=os.environ.get("POSTGRES_PASSWORD"),
-        dbname=os.environ.get("POSTGRES_DB"),
-        port=int(os.environ.get("POSTGRES_PORT")),
-        cursor_factory=RealDictCursor,  # Return results as dictionaries
-    )
+    db_connection = connect_to_postgresql()
 
 
 @server.route("/login", methods=["POST"])
