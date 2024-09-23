@@ -2,6 +2,7 @@ import os
 import gridfs
 import pika
 import json
+import time
 from flask import Flask, request, send_file
 from pymongo import MongoClient
 from auth_validator import validate
@@ -11,9 +12,45 @@ from bson.objectid import ObjectId
 
 server = Flask(__name__)
 
-# Connect to MongoDB using pymongo
-mongo_client_videos = MongoClient(f"mongodb://{os.environ.get('MONGO_HOST')}:27017/")
-mongo_client_mp3s = MongoClient(f"mongodb://{os.environ.get('MONGO_HOST')}:27017/")
+# Retry mechanism for MongoDB connection
+def connect_to_mongodb(retries=5, delay=5):
+    client = None
+    for attempt in range(retries):
+        try:
+            client = MongoClient(f"mongodb://{os.environ.get('MONGO_HOST')}:27017/")
+            print(f"Connected to MongoDB on attempt {attempt + 1}")
+            break
+        except Exception as e:
+            print(f"Failed to connect to MongoDB (attempt {attempt + 1}/{retries}): {e}")
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise Exception("Failed to connect to MongoDB after multiple attempts")
+    
+    return client
+
+# Retry mechanism for RabbitMQ connection
+def connect_to_rabbitmq(retries=5, delay=5):
+    connection = None
+    for attempt in range(retries):
+        try:
+            connection = pika.BlockingConnection(
+                pika.ConnectionParameters(os.environ.get("RABBITMQ_HOST"))
+            )
+            print(f"Connected to RabbitMQ on attempt {attempt + 1}")
+            break
+        except pika.exceptions.AMQPConnectionError as e:
+            print(f"Failed to connect to RabbitMQ (attempt {attempt + 1}/{retries}): {e}")
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise Exception("Failed to connect to RabbitMQ after multiple attempts")
+
+    return connection
+
+# Connect to MongoDB
+mongo_client_videos = connect_to_mongodb()
+mongo_client_mp3s = connect_to_mongodb()
 
 mongo_video_db = mongo_client_videos.videos
 mongo_mp3_db = mongo_client_mp3s.mp3s
@@ -21,7 +58,8 @@ mongo_mp3_db = mongo_client_mp3s.mp3s
 fs_videos = gridfs.GridFS(mongo_video_db)
 fs_mp3s = gridfs.GridFS(mongo_mp3_db)
 
-connection = pika.BlockingConnection(pika.ConnectionParameters(os.environ.get("RABBITMQ_HOST")))
+# Connect to RabbitMQ
+connection = connect_to_rabbitmq()
 channel = connection.channel()
 
 
