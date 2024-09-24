@@ -72,6 +72,9 @@ def upload():
         if len(request.files) != 1:
             return "exactly 1 file required", 400
         print(request.files, flush=True)
+        # Reconnect to RabbitMQ before handling each upload request
+        connection = connect_to_rabbitmq()
+        channel = connection.channel()
         for _, video_file in request.files.items():
             err = util.upload(video_file, fs_videos, channel, access)
 
