@@ -28,8 +28,10 @@ def main():
     def callback(ch, method, properties, body):
         err = mail.notification(body)
         if err:
+            print(f"error in notification: {err}", flush=True)
             ch.basic_nack(delivery_tag=method.delivery_tag)
         else:
+            print(f"notification sent, acknowledging message for queue {os.environ.get('MP3_QUEUE')}", flush=True)
             ch.basic_ack(delivery_tag=method.delivery_tag)
     
     channel.queue_declare(queue=os.environ.get("MP3_QUEUE"), durable=True)

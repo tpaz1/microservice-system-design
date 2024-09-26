@@ -27,7 +27,6 @@ def start(message, fs_videos, fs_mp3s, channel):
         fid = fs_mp3s.put(data)
     except Exception as err:
         print(err, flush=True)
-        f.close()
         # os.remove(tf_path)
         # return "failed to publish message"
     f.close()
@@ -37,6 +36,7 @@ def start(message, fs_videos, fs_mp3s, channel):
 
     try:
         channel.queue_declare(queue=os.environ.get("MP3_QUEUE"), durable=True)
+        print(f"Publishing message to {os.environ.get('MP3_QUEUE')}", flush=True)
         channel.basic_publish(
             exchange="",
             routing_key=os.environ.get("MP3_QUEUE"),

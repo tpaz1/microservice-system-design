@@ -62,11 +62,13 @@ def main():
     def callback(ch, method, properties, body):
         err = to_mp3.start(body, fs_videos, fs_mp3s, ch)
         if err:
+            print(f"error in convert: {err}", flush=True)
             ch.basic_nack(delivery_tag=method.delivery_tag)
         else:
+            print(f"notification sent, acknowledging message for queue {os.environ.get('VIDEO_QUEUE')}", flush=True)
             ch.basic_ack(delivery_tag=method.delivery_tag)
     
-    channel.queue_declare(queue="video", durable=True)
+    channel.queue_declare(queue=os.environ.get("VIDEO_QUEUE"), durable=True)
     channel.basic_consume(
         queue=os.environ.get("VIDEO_QUEUE"), on_message_callback=callback
     )
