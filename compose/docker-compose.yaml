@@ -83,19 +83,6 @@ services:
       - rabbitmq
     networks:
       - my-network
-  
-  notification:
-    build:
-      context: ../notification
-      dockerfile: Dockerfile
-    image: notification:latest
-    deploy:
-      replicas: 1
-    env_file: ./gateway.env
-    depends_on:
-      - rabbitmq
-    networks:
-      - my-network
 
 volumes:
   mongodb_data:
