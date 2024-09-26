@@ -1,0 +1,104 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    environment:
+      POSTGRES_USER: source_user
+      POSTGRES_PASSWORD: source_password
+      POSTGRES_DB: source_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # - pgdata_source:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  # Mounting the SQL file
+    networks:
+      - my-network
+  
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root_password
+      MONGO_INITDB_DATABASE: my_database
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - my-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"  # RabbitMQ default port
+      - "15672:15672"  # RabbitMQ management plugin
+    networks:
+      - my-network
+  
+  auth:
+    build:
+      context: ../auth
+      dockerfile: Dockerfile
+    image: auth:latest
+    ports:
+      - "5001:5001"
+    deploy:
+      replicas: 1
+    env_file: ./auth.env
+    depends_on:
+      - postgres
+    networks:
+      - my-network
+  
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
+    image: gateway:latest
+    ports:
+      - "8080:8080"
+    deploy:
+      replicas: 1
+    env_file: ./gateway.env
+    depends_on:
+      - mongodb
+      - rabbitmq
+    networks:
+      - my-network
+  
+  converter:
+    build:
+      context: ../converter
+      dockerfile: Dockerfile
+    image: converter:latest
+    deploy:
+      replicas: 1
+    env_file: ./gateway.env
+    depends_on:
+      - mongodb
+      - rabbitmq
+    networks:
+      - my-network
+  
+  notification:
+    build:
+      context: ../notification
+      dockerfile: Dockerfile
+    image: notification:latest
+    deploy:
+      replicas: 1
+    env_file: ./gateway.env
+    depends_on:
+      - rabbitmq
+    networks:
+      - my-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  my-network:
