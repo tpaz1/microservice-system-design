@@ -17,11 +17,13 @@ jobs:
         env:
           JF_URL: ${{ vars.JF_URL }}
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
+          JF_USER: ${{ secrets.JF_USER }}
 
       - name: Build Tag and push Docker Image
         env:
           IMAGE_NAME: setompaz.jfrog.io/serepo-docker/gateway:${{ github.run_number }}
         run: |
+          jf docker login ${{ vars.JF_URL }} --username ${{ secrets.JF_USER }} --password ${{ secrets.JF_ACCESS_TOKEN }}
           export DOCKER_BUILDKIT=1
           
           docker buildx create --use
