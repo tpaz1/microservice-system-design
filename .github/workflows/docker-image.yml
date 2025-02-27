@@ -22,6 +22,10 @@ jobs:
         env:
           IMAGE_NAME: setompaz.jfrog.io/serepo-docker/gateway:${{ github.run_number }}
         run: |
+          export DOCKER_BUILDKIT=1
+          
+          docker buildx create --use
+          
           jf docker buildx build --platform linux/amd64,linux/arm64 -t $IMAGE_NAME -f gateway/Dockerfile gateway/ --push
           
       - name: Publish Build info With JFrog CLI
