@@ -23,7 +23,7 @@ jobs:
           pip install jwt pytest
 
       - name: Run Unit Tests
-        run: pytest test_server.py
+        run: pytest auth/test_server.py
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
