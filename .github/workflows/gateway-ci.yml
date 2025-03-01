@@ -1,12 +1,15 @@
-name: Secure CI Pipeline for Gateway Service
+name: Secure CI Pipeline for gateway Service
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  build-and-tag:
+  ci-gateway:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -19,18 +22,13 @@ jobs:
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
           JF_USER: ${{ secrets.JF_USER }}
 
-      - name: Authenticate with JFrog Artifactory
+      - name: gatewayenticate with JFrog Artifactory
         run: |
           echo "${{ secrets.JF_ACCESS_TOKEN }}" | docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
 
       - name: Set Environment Variables
         run: echo "IMAGE_NAME=setompaz.jfrog.io/serepo-docker/gateway:${{ github.run_number }}" >> $GITHUB_ENV
-
-      - name: Enable Docker BuildKit & Secure Buildx
-        run: |
-          export DOCKER_BUILDKIT=1
-          docker buildx create --use
-
+      
       - name: Install Hadolint
         run: |
           curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
@@ -38,20 +36,33 @@ jobs:
 
       - name: Lint Dockerfile for Security Best Practices
         run: hadolint gateway/Dockerfile
-
-      - name: Build & Push Multi-Arch Secure Docker Image
+      
+      - name: build Docker Image Before Scanning
+        run: docker build -t $IMAGE_NAME ./gateway
+      
+      - name: Install Syft for SBOM Generation
         run: |
-          jf docker buildx build --platform linux/amd64 \
-            --tag $IMAGE_NAME \
-            --file gateway/Dockerfile \
-            --push \
-            gateway/
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Pull Docker Image Before Scanning
-        run: docker pull $IMAGE_NAME
+      - name: Generate SBOM (Software Bill of Materials)
+        run: |
+          syft $IMAGE_NAME -o json > sbom.json
+          cat sbom.json
+      
+      - name: Upload SBOM as an Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
 
       - name: Run XRay Scan Locally
         run: jf docker scan $IMAGE_NAME --output json > xray-scan-results.json
+      
+      - name: Upload XRay Scan Results as an Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-scan-results
+          path: xray-scan-results.json
 
       - name: Fail if Critical Vulnerabilities Exist
         run: |
@@ -61,14 +72,18 @@ jobs:
           fi
           echo "✅ No critical vulnerabilities found."
 
-      - name: Install Syft for SBOM Generation
+      - name: Enable Docker BuildKit & Secure Buildx
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          export DOCKER_BUILDKIT=1
+          docker buildx create --use
 
-      - name: Generate SBOM (Software Bill of Materials)
+      - name: Build & Push Multi-Arch Secure Docker Image
         run: |
-          syft $IMAGE_NAME -o json > sbom.json
-          cat sbom.json
+          jf docker buildx build --platform linux/amd64 \
+            --tag $IMAGE_NAME \
+            --file gateway/Dockerfile \
+            --push \
+            gateway/
 
       - name: Install Cosign for Image Signing
         run: |
@@ -96,9 +111,3 @@ jobs:
       - name: Run XRay Vulnerability Scan and Attach to Build
         run: |
           jf rt build-scan gateway-build ${{ github.run_number }}
-
-      - name: Upload XRay Scan Results as an Artifact
-        uses: actions/upload-artifact@v4 
-        with:
-          name: xray-scan-results
-          path: xray-scan-results.json
