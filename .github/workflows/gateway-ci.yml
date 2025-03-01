@@ -21,7 +21,7 @@ jobs:
 
       - name: Authenticate with JFrog Artifactory
         run: |
-          echo "${{ secrets.JF_ACCESS_TOKEN }}" | docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
+          echo "${{ secrets.JF_ACCESS_TOKEN }}" | jf docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
 
       - name: Set Environment Variables
         run: echo "IMAGE_NAME=setompaz.jfrog.io/serepo-docker/gateway:${{ github.run_number }}" >> $GITHUB_ENV
@@ -86,12 +86,16 @@ jobs:
 
       - name: Publish Build Info with JFrog CLI
         env:
-          JFROG_CLI_BUILD_NAME: jfrog-docker-build-example
+          JFROG_CLI_BUILD_NAME: gateway-build
           JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
         run: |
           jf rt build-collect-env
           jf rt build-add-git
           jf rt build-publish
+      
+      - name: Run XRay Vulnerability Scan and Attach to Build
+        run: |
+          jf rt build-scan gateway-build ${{ github.run_number }}
 
       - name: Upload XRay Scan Results as an Artifact
         uses: actions/upload-artifact@v4  # ✅ Fixed version
