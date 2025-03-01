@@ -109,6 +109,5 @@ After starting the services, you can use tools like Postman or CURL to interact 
 This project provides a solid foundation for understanding microservices architecture, asynchronous processing with RabbitMQ, and file handling with MongoDB. Completing the missions will help you deepen your knowledge and practical skills in deploying and managing microservices.
 
 
-
 curl -X POST http://localhost:8080/login -u tompaz@email.com:Admin123
 curl -X POST -F 'file=@./test.mp4' http://localhost:8080/upload -H 'Authorization: sdvlkjhdsov'
