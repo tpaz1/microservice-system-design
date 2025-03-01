@@ -21,7 +21,7 @@ jobs:
 
       - name: Authenticate with JFrog Artifactory
         run: |
-          echo "${{ secrets.JF_ACCESS_TOKEN }}" | jf docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
+          echo "${{ secrets.JF_ACCESS_TOKEN }}" | docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
 
       - name: Set Environment Variables
         run: echo "IMAGE_NAME=setompaz.jfrog.io/serepo-docker/gateway:${{ github.run_number }}" >> $GITHUB_ENV
