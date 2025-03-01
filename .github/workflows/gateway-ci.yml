@@ -47,11 +47,11 @@ jobs:
             --push \
             gateway/
 
-      - name: Run XRay Vulnerability Scan
-        run: |
-          docker images
-          echo $IMAGE_NAME
-          jf docker scan $IMAGE_NAME --output json > xray-scan-results.json
+      - name: Pull Docker Image Before Scanning
+        run: docker pull $IMAGE_NAME
+
+      - name: Run XRay Scan Locally
+        run: jf docker scan $IMAGE_NAME --output json > xray-scan-results.json
 
       - name: Fail if Critical Vulnerabilities Exist
         run: |
