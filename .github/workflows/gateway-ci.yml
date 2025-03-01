@@ -80,6 +80,12 @@ jobs:
 
       - name: Sign Docker Image with Cosign
         run: |
+          echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
+          chmod 600 cosign.key  # Secure key permissions
+          cosign sign --key cosign.key $IMAGE_NAME
+
+      - name: Sign Docker Image with Cosign
+        run: |
           echo "${{ secrets.COSIGN_PRIVATE_KEY }}" | base64 -d > cosign.key
           cosign sign --key cosign.key $IMAGE_NAME
 
