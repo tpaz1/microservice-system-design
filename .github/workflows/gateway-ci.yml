@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
@@ -24,25 +24,24 @@ jobs:
           echo "${{ secrets.JF_ACCESS_TOKEN }}" | docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
 
       - name: Set Environment Variables
-        env:
-          IMAGE_NAME: setompaz.jfrog.io/serepo-docker/gateway:${{ github.run_number }}
-        run: |
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}" >> $GITHUB_ENV
+        run: echo "IMAGE_NAME=setompaz.jfrog.io/serepo-docker/gateway:${{ github.run_number }}" >> $GITHUB_ENV
 
       - name: Enable Docker BuildKit & Secure Buildx
         run: |
           export DOCKER_BUILDKIT=1
           docker buildx create --use
 
-      - name: Lint Dockerfile for Security Best Practices
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: gateway/Dockerfile
+      - name: Install Hadolint
+        run: |
+          curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
+          chmod +x /usr/local/bin/hadolint
 
+      - name: Lint Dockerfile for Security Best Practices
+        run: hadolint gateway/Dockerfile
 
       - name: Build & Push Multi-Arch Secure Docker Image
         run: |
-          jf docker buildx build --platform linux/amd64 \
+          jf docker buildx build --platform linux/amd64,linux/arm64 \
             --tag $IMAGE_NAME \
             --file gateway/Dockerfile \
             --push \
@@ -60,10 +59,18 @@ jobs:
           fi
           echo "✅ No critical vulnerabilities found."
 
+      - name: Install Syft for SBOM Generation
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Generate SBOM (Software Bill of Materials)
         run: |
           syft $IMAGE_NAME -o json > sbom.json
           cat sbom.json
+
+      - name: Install Cosign for Image Signing
+        run: |
+          sudo apt update && sudo apt install cosign
 
       - name: Sign Docker Image with Cosign
         run: |
@@ -75,15 +82,12 @@ jobs:
           JFROG_CLI_BUILD_NAME: jfrog-docker-build-example
           JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          # Collect environment variables for traceability
           jf rt build-collect-env
-          # Add Git information to the build metadata
           jf rt build-add-git
-          # Publish build information to JFrog Artifactory
           jf rt build-publish
 
       - name: Upload XRay Scan Results as an Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # ✅ Fixed version
         with:
           name: xray-scan-results
           path: xray-scan-results.json
