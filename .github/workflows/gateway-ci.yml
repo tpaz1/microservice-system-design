@@ -98,7 +98,7 @@ jobs:
           jf rt build-scan gateway-build ${{ github.run_number }}
 
       - name: Upload XRay Scan Results as an Artifact
-        uses: actions/upload-artifact@v4  # ✅ Fixed version
+        uses: actions/upload-artifact@v4 
         with:
           name: xray-scan-results
           path: xray-scan-results.json

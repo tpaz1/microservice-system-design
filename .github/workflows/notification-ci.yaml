@@ -1,16 +1,16 @@
-name: CI notification service
+name: Secure CI Pipeline for notification Service
 
 on:
   push:
     branches:
       - main
-      
+
 jobs:
   build-and-tag:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
@@ -19,28 +19,86 @@ jobs:
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
           JF_USER: ${{ secrets.JF_USER }}
 
-      - name: Build Tag and push Docker Image
-        env:
-          IMAGE_NAME: setompaz.jfrog.io/serepo-docker/notification:${{ github.run_number }}
+      - name: Authenticate with JFrog Artifactory
         run: |
-          docker login setompaz.jfrog.io --username tomp --password ${{ secrets.JF_ACCESS_TOKEN }}
+          echo "${{ secrets.JF_ACCESS_TOKEN }}" | docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
+
+      - name: Set Environment Variables
+        run: echo "IMAGE_NAME=setompaz.jfrog.io/serepo-docker/notification:${{ github.run_number }}" >> $GITHUB_ENV
+
+      - name: Enable Docker BuildKit & Secure Buildx
+        run: |
           export DOCKER_BUILDKIT=1
-          
           docker buildx create --use
-          
-          jf docker buildx build --platform linux/amd64 -t $IMAGE_NAME -f notification/Dockerfile notification/ --push
-          
-      - name: Publish Build info With JFrog CLI
-        env:
-          # Generated and maintained by GitHub
-          JFROG_CLI_BUILD_NAME: jfrog-docker-build-example
-          # JFrog organization secret
-          JFROG_CLI_BUILD_NUMBER : ${{ github.run_number }}
+
+      - name: Install Hadolint
         run: |
-          # Export the build name and build nuber
-          # Collect environment variables for the build
+          curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
+          chmod +x /usr/local/bin/hadolint
+
+      - name: Lint Dockerfile for Security Best Practices
+        run: hadolint notification/Dockerfile
+
+      - name: Build & Push Multi-Arch Secure Docker Image
+        run: |
+          jf docker buildx build --platform linux/amd64 \
+            --tag $IMAGE_NAME \
+            --file notification/Dockerfile \
+            --push \
+            notification/
+
+      - name: Pull Docker Image Before Scanning
+        run: docker pull $IMAGE_NAME
+
+      - name: Run XRay Scan Locally
+        run: jf docker scan $IMAGE_NAME --output json > xray-scan-results.json
+
+      - name: Fail if Critical Vulnerabilities Exist
+        run: |
+          if grep -q '"severity": "Critical"' xray-scan-results.json; then
+            echo "❌ Critical vulnerabilities found! Failing build..."
+            exit 1
+          fi
+          echo "✅ No critical vulnerabilities found."
+
+      - name: Install Syft for SBOM Generation
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM (Software Bill of Materials)
+        run: |
+          syft $IMAGE_NAME -o json > sbom.json
+          cat sbom.json
+
+      - name: Install Cosign for Image Signing
+        run: |
+          COSIGN_VERSION=$(curl -s "https://api.github.com/repos/sigstore/cosign/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
+          wget "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64"
+          chmod +x cosign-linux-amd64
+          sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+          cosign version
+
+      - name: Sign Docker Image with Cosign
+        run: |
+          echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
+          chmod 600 cosign.key  # Secure key permissions
+          cosign sign --key cosign.key $IMAGE_NAME
+
+      - name: Publish Build Info with JFrog CLI
+        env:
+          JFROG_CLI_BUILD_NAME: notification-build
+          JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
           jf rt build-collect-env
-          # Collect VCS details from git and add them to the build
           jf rt build-add-git
-          # Publish build info
           jf rt build-publish
+      
+      - name: Run XRay Vulnerability Scan and Attach to Build
+        run: |
+          jf rt build-scan notification-build ${{ github.run_number }}
+
+      - name: Upload XRay Scan Results as an Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-scan-results
+          path: xray-scan-results.json
