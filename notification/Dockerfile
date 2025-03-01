@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary system dependencies for both amd64 and arm64
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev qemu-user-static \
+    build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory

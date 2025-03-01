@@ -1,16 +1,16 @@
-name: Build and Tag Docker Image
+name: Secure CI Pipeline for Gateway Service
 
 on:
   push:
     branches:
       - main
-      
+
 jobs:
   build-and-tag:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
@@ -19,28 +19,71 @@ jobs:
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
           JF_USER: ${{ secrets.JF_USER }}
 
-      - name: Build Tag and push Docker Image
+      - name: Authenticate with JFrog Artifactory
+        run: |
+          echo "${{ secrets.JF_ACCESS_TOKEN }}" | docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
+
+      - name: Set Environment Variables
         env:
           IMAGE_NAME: setompaz.jfrog.io/serepo-docker/gateway:${{ github.run_number }}
         run: |
-          docker login setompaz.jfrog.io --username tomp --password ${{ secrets.JF_ACCESS_TOKEN }}
-          export DOCKER_BUILDKIT=1
-          
-          docker buildx create --use
-          
-          jf docker buildx build --platform linux/amd64 -t $IMAGE_NAME -f gateway/Dockerfile gateway/ --push
-          
-      - name: Publish Build info With JFrog CLI
-        env:
-          # Generated and maintained by GitHub
-          JFROG_CLI_BUILD_NAME: jfrog-docker-build-example
-          # JFrog organization secret
-          JFROG_CLI_BUILD_NUMBER : ${{ github.run_number }}
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}" >> $GITHUB_ENV
+
+      - name: Enable Docker BuildKit & Secure Buildx
         run: |
-          # Export the build name and build nuber
-          # Collect environment variables for the build
+          export DOCKER_BUILDKIT=1
+          docker buildx create --use
+
+      - name: Lint Dockerfile for Security Best Practices
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: gateway/Dockerfile
+
+
+      - name: Build & Push Multi-Arch Secure Docker Image
+        run: |
+          jf docker buildx build --platform linux/amd64 \
+            --tag $IMAGE_NAME \
+            --file gateway/Dockerfile \
+            --push \
+            gateway/
+
+      - name: Run XRay Vulnerability Scan
+        run: |
+          jf xr scan $IMAGE_NAME --output json > xray-scan-results.json
+
+      - name: Fail if Critical Vulnerabilities Exist
+        run: |
+          if grep -q '"severity": "Critical"' xray-scan-results.json; then
+            echo "❌ Critical vulnerabilities found! Failing build..."
+            exit 1
+          fi
+          echo "✅ No critical vulnerabilities found."
+
+      - name: Generate SBOM (Software Bill of Materials)
+        run: |
+          syft $IMAGE_NAME -o json > sbom.json
+          cat sbom.json
+
+      - name: Sign Docker Image with Cosign
+        run: |
+          echo "${{ secrets.COSIGN_PRIVATE_KEY }}" | base64 -d > cosign.key
+          cosign sign --key cosign.key $IMAGE_NAME
+
+      - name: Publish Build Info with JFrog CLI
+        env:
+          JFROG_CLI_BUILD_NAME: jfrog-docker-build-example
+          JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          # Collect environment variables for traceability
           jf rt build-collect-env
-          # Collect VCS details from git and add them to the build
+          # Add Git information to the build metadata
           jf rt build-add-git
-          # Publish build info
+          # Publish build information to JFrog Artifactory
           jf rt build-publish
+
+      - name: Upload XRay Scan Results as an Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: xray-scan-results
+          path: xray-scan-results.json

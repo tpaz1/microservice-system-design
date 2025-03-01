@@ -18,4 +18,4 @@ CREATE TABLE users (
 );
 
 -- Insert data
-INSERT INTO users (email, password) VALUES ('<your-username>', '<your-password>');
+INSERT INTO users (email, password) VALUES ('tompazz16@email.com', 'Admin123');

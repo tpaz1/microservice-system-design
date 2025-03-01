@@ -3,3 +3,5 @@ venv/
 *.env
 *.DS_Store
 *.mp4
+*.key
+*.pub
