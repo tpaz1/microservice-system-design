@@ -11,6 +11,19 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+      
+      - name: Set Up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install jwt pytest
+
+      - name: Run Unit Tests
+        run: pytest test_server.py
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
@@ -25,12 +38,7 @@ jobs:
 
       - name: Set Environment Variables
         run: echo "IMAGE_NAME=setompaz.jfrog.io/serepo-docker/auth:${{ github.run_number }}" >> $GITHUB_ENV
-
-      - name: Enable Docker BuildKit & Secure Buildx
-        run: |
-          export DOCKER_BUILDKIT=1
-          docker buildx create --use
-
+      
       - name: Install Hadolint
         run: |
           curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
@@ -38,17 +46,9 @@ jobs:
 
       - name: Lint Dockerfile for Security Best Practices
         run: hadolint auth/Dockerfile
-
-      - name: Build & Push Multi-Arch Secure Docker Image
-        run: |
-          jf docker buildx build --platform linux/amd64 \
-            --tag $IMAGE_NAME \
-            --file auth/Dockerfile \
-            --push \
-            auth/
-
+      
       - name: Pull Docker Image Before Scanning
-        run: docker pull $IMAGE_NAME
+        run: docker build $IMAGE_NAME docker build -t $IMAGE_NAME /auth/Dockerfile
 
       - name: Run XRay Scan Locally
         run: jf docker scan $IMAGE_NAME --output json > xray-scan-results.json
@@ -60,6 +60,19 @@ jobs:
             exit 1
           fi
           echo "✅ No critical vulnerabilities found."
+
+      - name: Enable Docker BuildKit & Secure Buildx
+        run: |
+          export DOCKER_BUILDKIT=1
+          docker buildx create --use
+
+      - name: Build & Push Multi-Arch Secure Docker Image
+        run: |
+          jf docker buildx build --platform linux/amd64 \
+            --tag $IMAGE_NAME \
+            --file auth/Dockerfile \
+            --push \
+            auth/
 
       - name: Install Syft for SBOM Generation
         run: |
