@@ -48,7 +48,7 @@ jobs:
         run: hadolint auth/Dockerfile
       
       - name: Pull Docker Image Before Scanning
-        run: docker build -t $IMAGE_NAME /auth/Dockerfile
+        run: docker build -t $IMAGE_NAME auth/Dockerfile
 
       - name: Run XRay Scan Locally
         run: jf docker scan $IMAGE_NAME --output json > xray-scan-results.json
