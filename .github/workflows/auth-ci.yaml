@@ -47,11 +47,32 @@ jobs:
       - name: Lint Dockerfile for Security Best Practices
         run: hadolint auth/Dockerfile
       
-      - name: Pull Docker Image Before Scanning
+      - name: build Docker Image Before Scanning
         run: docker build -t $IMAGE_NAME ./auth
+      
+      - name: Install Syft for SBOM Generation
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM (Software Bill of Materials)
+        run: |
+          syft $IMAGE_NAME -o json > sbom.json
+          cat sbom.json
+      
+      - name: Upload SBOM as an Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
 
       - name: Run XRay Scan Locally
         run: jf docker scan $IMAGE_NAME --output json > xray-scan-results.json
+      
+      - name: Upload XRay Scan Results as an Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-scan-results
+          path: xray-scan-results.json
 
       - name: Fail if Critical Vulnerabilities Exist
         run: |
@@ -73,15 +94,6 @@ jobs:
             --file auth/Dockerfile \
             --push \
             auth/
-
-      - name: Install Syft for SBOM Generation
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Generate SBOM (Software Bill of Materials)
-        run: |
-          syft $IMAGE_NAME -o json > sbom.json
-          cat sbom.json
 
       - name: Install Cosign for Image Signing
         run: |
@@ -109,9 +121,3 @@ jobs:
       - name: Run XRay Vulnerability Scan and Attach to Build
         run: |
           jf rt build-scan auth-build ${{ github.run_number }}
-
-      - name: Upload XRay Scan Results as an Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: xray-scan-results
-          path: xray-scan-results.json
