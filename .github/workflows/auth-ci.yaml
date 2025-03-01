@@ -20,7 +20,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir -r auth/requirements.txt
 
       - name: Run Unit Tests
         run: pytest auth/test_server.py
