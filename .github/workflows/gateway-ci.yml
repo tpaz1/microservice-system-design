@@ -49,7 +49,9 @@ jobs:
 
       - name: Run XRay Vulnerability Scan
         run: |
-          jf xr scan $IMAGE_NAME --output json > xray-scan-results.json
+          docker images
+          echo $IMAGE_NAME
+          jf scan $IMAGE_NAME --output json > xray-scan-results.json
 
       - name: Fail if Critical Vulnerabilities Exist
         run: |
