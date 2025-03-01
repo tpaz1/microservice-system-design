@@ -107,7 +107,7 @@ jobs:
         run: |
           echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
           chmod 600 cosign.key  # Secure key permissions
-          cosign sign --key cosign.key $IMAGE_NAME
+          cosign sign --key cosign.key --upload=true $IMAGE_NAME -y
 
       - name: Publish Build Info with JFrog CLI
         env:

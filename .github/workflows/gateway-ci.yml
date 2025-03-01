@@ -19,7 +19,7 @@ jobs:
           JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
           JF_USER: ${{ secrets.JF_USER }}
 
-      - name: gatewayenticate with JFrog Artifactory
+      - name: authenticate with JFrog Artifactory
         run: |
           echo "${{ secrets.JF_ACCESS_TOKEN }}" | docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
 
@@ -94,7 +94,7 @@ jobs:
         run: |
           echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
           chmod 600 cosign.key  # Secure key permissions
-          cosign sign --key cosign.key $IMAGE_NAME
+          cosign sign --key cosign.key --upload=true $IMAGE_NAME -y
 
       - name: Publish Build Info with JFrog CLI
         env:
