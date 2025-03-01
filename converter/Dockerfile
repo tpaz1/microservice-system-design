@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary system dependencies for both amd64 and arm64
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev \
+    build-essential=12.9 libpq-dev=13.20-0+deb11u1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory

@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install necessary system dependencies
 RUN apt-get update \
   && apt-get install -y --no-install-recommends --no-install-suggests \
-  build-essential libpq-dev \
+  build-essential=12.9 libpq-dev=13.20-0+deb11u1 \
   && pip install --no-cache-dir --upgrade pip
 
 # Set the working directory
