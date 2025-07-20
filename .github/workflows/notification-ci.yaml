@@ -4,6 +4,12 @@ on:
   pull_request:
     branches:
       - main
+permissions:
+  actions: read # for detecting the Github Actions environment.
+  id-token: write # for creating OIDC tokens for signing.
+  packages: write # for uploading attestations.
+  contents: read
+  security-events: write
 
 jobs:
   ci-notification:
@@ -11,21 +17,23 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+      - name: Set IMAGE_NAME env var
+        run: echo "IMAGE_NAME=tompazus.jfrog.io/tomp-docker-dev-local/notification:${{ github.run_number }}" >> $GITHUB_ENV
 
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
+        id: setup-cli
         env:
           JF_URL: ${{ vars.JF_URL }}
-          JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
-          JF_USER: ${{ secrets.JF_USER }}
-
-      - name: authenticate with JFrog Artifactory
-        run: |
-          echo "${{ secrets.JF_ACCESS_TOKEN }}" | docker login setompaz.jfrog.io --username "${{ secrets.JF_USER }}" --password-stdin
-
-      - name: Set Environment Variables
-        run: echo "IMAGE_NAME=setompaz.jfrog.io/serepo-docker/notification:${{ github.run_number }}" >> $GITHUB_ENV
-      
+          IMAGE_NAME: tompazus.jfrog.io/tomp-docker-dev-local/notification:${{ github.run_number }}
+        with:
+          oidc-provider-name: github-jfrog-cli
+      - name: Authenticate Docker
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.JF_URL }}
+          username: ${{ steps.setup-cli.outputs.oidc-user }}
+          password: ${{ steps.setup-cli.outputs.oidc-token }}
       - name: Install Hadolint
         run: |
           curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
@@ -36,21 +44,6 @@ jobs:
       
       - name: build Docker Image Before Scanning
         run: docker build -t $IMAGE_NAME ./notification
-      
-      - name: Install Syft for SBOM Generation
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Generate SBOM (Software Bill of Materials)
-        run: |
-          syft $IMAGE_NAME -o json > sbom.json
-          cat sbom.json
-      
-      - name: Upload SBOM as an Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom
-          path: sbom.json
 
       - name: Run XRay Scan Locally
         run: jf docker scan $IMAGE_NAME --output json > xray-scan-results.json
@@ -61,49 +54,65 @@ jobs:
           name: xray-scan-results
           path: xray-scan-results.json
 
-      - name: Fail if Critical Vulnerabilities Exist
-        run: |
-          if grep -q '"severity": "Critical"' xray-scan-results.json; then
-            echo "❌ Critical vulnerabilities found! Failing build..."
-            exit 1
-          fi
-          echo "✅ No critical vulnerabilities found."
-
       - name: Enable Docker BuildKit & Secure Buildx
         run: |
           export DOCKER_BUILDKIT=1
           docker buildx create --use
 
       - name: Build & Push Multi-Arch Secure Docker Image
-        run: |
-          jf docker buildx build --platform linux/amd64 \
-            --tag $IMAGE_NAME \
-            --file notification/Dockerfile \
-            --push \
-            notification/
-
-      - name: Install Cosign for Image Signing
-        run: |
-          COSIGN_VERSION=$(curl -s "https://api.github.com/repos/sigstore/cosign/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
-          wget "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64"
-          chmod +x cosign-linux-amd64
-          sudo mv cosign-linux-amd64 /usr/local/bin/cosign
-          cosign version
-
-      - name: Sign Docker Image with Cosign
-        run: |
-          echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
-          chmod 600 cosign.key  # Secure key permissions
-          cosign sign --key cosign.key --upload=true $IMAGE_NAME -y
-
-      - name: Publish Build Info with JFrog CLI
         env:
           JFROG_CLI_BUILD_NAME: notification-build
           JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          jf rt build-collect-env
-          jf rt build-add-git
-          jf rt build-publish
+          jf docker buildx build --platform linux/amd64 \
+            --tag $IMAGE_NAME \
+            --file notification/Dockerfile \
+            --metadata-file=build-metadata \
+            --push \
+            notification/
+          cat build-metadata
+      - name: Extract Digest using Buildx Imagetools
+        run: |
+          REF=$(docker buildx imagetools inspect $IMAGE_NAME --format '{{ (index .Manifest.Manifests 0).Digest }}')
+          FULL_REF="${IMAGE_NAME%@*}@$REF"
+          echo "$FULL_REF" > image.txt
+          echo "✅ Final image reference:"
+          cat image.txt
+          jf rt build-docker-create tomp-docker-dev-local --image-file image.txt --build-name notification-build --build-number ${{ github.run_number }}
+          jf rt build-collect-env notification-build ${{ github.run_number }}
+          jf rt build-add-git notification-build ${{ github.run_number }}
+          jf rt build-publish notification-build ${{ github.run_number }}
+
+      - name: Install Cosign v2.5.3
+        run: |
+          COSIGN_VERSION="v2.5.3"
+          curl -Lo cosign "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64"
+          chmod +x cosign
+          sudo mv cosign /usr/local/bin/cosign
+          cosign version
+      - name: Sign Docker Image with Cosign
+        env:
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign version
+          echo "${{ secrets.COSIGN_PRIVATE_KEY }}" > cosign.key
+          chmod 600 cosign.key  # Secure key permissions
+          cosign sign --key cosign.key --upload=true $IMAGE_NAME -y
+
+      # - name: Publish Build Info with JFrog CLI
+      #   env:
+      #     JFROG_CLI_BUILD_NAME: notification-build
+      #     JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
+      #   run: |
+      #     jf docker pull $IMAGE_NAME
+      #     jf rt build-collect-env
+      #     jf rt build-add-git
+      #     jf rt build-publish
+      #     digest=$(docker inspect --format='{{index .RepoDigests 0}}' $IMAGE_NAME | cut -d@ -f2)
+      #     echo "$IMAGE_NAME@$digest" > image.txt
+      #     echo "🧪 IMAGE_NAME: $IMAGE_NAME"
+      #     cat image.txt
+      #     jf rt build-docker-create tomp-docker-dev-local --image-file image.txt
       
       - name: Run XRay Vulnerability Scan and Attach to Build
         run: |

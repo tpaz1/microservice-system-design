@@ -141,6 +141,7 @@ on:
 
 - name: Build & Push Multi-Arch Secure Docker Image
   run: |
+    jf docker login tompazus.jfrog.io
     jf docker buildx build --platform linux/amd64 \
       --tag $IMAGE_NAME \
       --file auth/Dockerfile \

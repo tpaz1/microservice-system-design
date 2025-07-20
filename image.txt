@@ -1,0 +1,3 @@
+tompazus.jfrog.io/tomp-docker-dev-local/notification:55@sha256:0d880c73b418ae6eb4748372ec35cf9ef4efef755739f5586f9ed3ee03927d35
+
+***us.jfrog.io/tomp-docker-dev-local/auth:62@sha256:f867db2d629087ddc3e58943417088d3ca9f9abe6c211270a4cc821524af4b08
