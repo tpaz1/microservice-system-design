@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install necessary system dependencies with pinned versions
 RUN apt-get update \
   && apt-get install -y --no-install-recommends --no-install-suggests \
-  build-essential=12.9 libpq-dev=13.20-0+deb11u1 \
+  build-essential=12.9 libpq-dev=13.21-0+deb11u1 \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
@@ -27,7 +27,7 @@ FROM python:3.10-slim-bullseye
 # Install only the necessary runtime dependencies with pinned versions
 RUN apt-get update \
   && apt-get install -y --no-install-recommends --no-install-suggests \
-  libpq5=13.20-0+deb11u1 \
+  libpq5=13.21-0+deb11u1 \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for security
