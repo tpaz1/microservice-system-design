@@ -31,6 +31,6 @@ jobs:
         with:
           oidc-provider-name: github-jfrog-cli
         env:
-          JF_URL: ${{ secrets.JF_URL }}
+          JF_URL: ${{ vars.JF_URL }}
           JF_GIT_TOKEN: ${{ secrets.JF_GIT_TOKEN }}
           JF_GIT_BASE_BRANCH: ${{ matrix.branch }}    # For repository scan action
