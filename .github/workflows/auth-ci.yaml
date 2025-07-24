@@ -77,8 +77,8 @@ jobs:
       - name: build Docker Image Before Scanning
         run: |
           echo "Building image: $IMAGE_NAME"
-          docker build -t $IMAGE_NAME ./auth
-      
+          docker build --build-arg PIP_INDEX_URL="https://${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_API_KEY }}@tompazus.jfrog.io/artifactory/api/pypi/pypi-remote/simple" --build-arg DEBIAN_REMOTE_URL="https://${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_API_KEY }}@tompazus.jfrog.io/artifactory/debian-remote" -t $IMAGE_NAME ./auth
+
       # - name: Install Syft for SBOM Generation
       #   run: |
       #     curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
