@@ -122,6 +122,8 @@ jobs:
           JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
         run: |
           jf docker buildx build --platform linux/amd64 \
+            --build-arg PIP_INDEX_URL="https://${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_API_KEY }}@tompazus.jfrog.io/artifactory/api/pypi/python-virtual/simple" \
+            --build-arg DEBIAN_REMOTE_URL="https://${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_API_KEY }}@tompazus.jfrog.io/artifactory/debian-remote" \
             --tag $IMAGE_NAME \
             --file auth/Dockerfile \
             --metadata-file=build-metadata \
