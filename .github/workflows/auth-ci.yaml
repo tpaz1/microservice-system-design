@@ -41,11 +41,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+      - name: configure jfrog environment
+        run: |
+          jf pip-config --repo-resolve=python-virtual    
 
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
-          pip install --no-cache-dir -r auth/requirements.txt
+          jf pip install -r auth/requirements.txt --module=auth-python-deps
+          # pip install --no-cache-dir -r auth/requirements.txt
 
       - name: Run Unit Tests
         run: pytest auth/test_server.py
@@ -73,8 +77,8 @@ jobs:
       - name: build Docker Image Before Scanning
         run: |
           echo "Building image: $IMAGE_NAME"
-          docker build -t $IMAGE_NAME ./auth
-      
+          docker build --build-arg PIP_INDEX_URL="https://${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_API_KEY }}@tompazus.jfrog.io/artifactory/api/pypi/python-virtual/simple" --build-arg DEBIAN_REMOTE_URL="https://${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_API_KEY }}@tompazus.jfrog.io/artifactory/debian-remote" -t $IMAGE_NAME ./auth
+
       # - name: Install Syft for SBOM Generation
       #   run: |
       #     curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
@@ -118,6 +122,8 @@ jobs:
           JFROG_CLI_BUILD_NUMBER: ${{ github.run_number }}
         run: |
           jf docker buildx build --platform linux/amd64 \
+            --build-arg PIP_INDEX_URL="https://${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_API_KEY }}@tompazus.jfrog.io/artifactory/api/pypi/python-virtual/simple" \
+            --build-arg DEBIAN_REMOTE_URL="https://${{ secrets.JFROG_USERNAME }}:${{ secrets.JFROG_API_KEY }}@tompazus.jfrog.io/artifactory/debian-remote" \
             --tag $IMAGE_NAME \
             --file auth/Dockerfile \
             --metadata-file=build-metadata \

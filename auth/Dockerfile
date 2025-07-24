@@ -1,52 +1,62 @@
-# Use a lightweight base image
+#####################
+##  Builder Stage  ##
+#####################
 FROM python:3.10-slim-bullseye AS builder
 
-# Set environment variables to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install necessary system dependencies with pinned versions
+# Inject credentials at build time via build-args
+ARG DEBIAN_REMOTE_URL
+ARG PIP_INDEX_URL
+
+# Configure apt to use JFrog Debian remote
+RUN echo "deb [trusted=yes] $DEBIAN_REMOTE_URL bullseye main" > /etc/apt/sources.list.d/jfrog.list
+
+# Install build dependencies
 RUN apt-get update \
   && apt-get install -y --no-install-recommends --no-install-suggests \
-  build-essential=12.9 libpq-dev=13.21-0+deb11u1 \
-  && apt-get clean && rm -rf /var/lib/apt/lists/*
+     build-essential=12.9 libpq-dev=13.21-0+deb11u1 \
+  && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/jfrog.list
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the requirements file
 COPY ./requirements.txt .
 
-# Install Python dependencies inside a virtual environment with pinned versions
+# Use virtualenv and pip from JFrog PyPI remote
 RUN python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir --upgrade pip==25.0.1 && \
-    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /opt/venv/bin/pip install --no-cache-dir --index-url "$PIP_INDEX_URL" -r requirements.txt
 
-# Use a minimal final image
+#####################
+##  Final Stage    ##
+#####################
 FROM python:3.10-slim-bullseye
 
-# Install only the necessary runtime dependencies with pinned versions
+ENV DEBIAN_FRONTEND=noninteractive
+
+ARG DEBIAN_REMOTE_URL
+
+# Configure apt to use JFrog Debian remote
+RUN echo "deb [trusted=yes] $DEBIAN_REMOTE_URL bullseye main" > /etc/apt/sources.list.d/jfrog.list
+
+# Install runtime dependencies
 RUN apt-get update \
   && apt-get install -y --no-install-recommends --no-install-suggests \
-  libpq5=13.21-0+deb11u1 \
-  && apt-get clean && rm -rf /var/lib/apt/lists/*
+     libpq5=13.21-0+deb11u1 \
+  && rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/jfrog.list
 
-# Create a non-root user for security
+# Security: run as non-root
 RUN useradd --create-home appuser
 WORKDIR /app
 
-# Copy built environment from the builder stage
 COPY --from=builder /opt/venv /opt/venv
 COPY . /app
 
-# Set permissions for the non-root user
 RUN chown -R appuser:appuser /app
 USER appuser
 
-# Set environment variable to use the virtual environment
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Expose the application port
 EXPOSE 5000
 
-# Run the application
 CMD ["python3", "server.py"]
