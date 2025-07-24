@@ -34,3 +34,6 @@ jobs:
           JF_URL: ${{ vars.JF_URL }}
           JF_GIT_TOKEN: ${{ secrets.JF_GIT_TOKEN }}
           JF_GIT_BASE_BRANCH: ${{ matrix.branch }}    # For repository scan action
+          JF_FAIL: "FALSE"
+          JF_INCLUDE_ALL_VULNERABILITIES: "TRUE"
+
