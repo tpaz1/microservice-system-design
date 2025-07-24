@@ -24,7 +24,7 @@ COPY ./requirements.txt .
 
 # Use virtualenv and pip from JFrog PyPI remote
 RUN python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir --upgrade pip==25.0.1 && \
+    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
     /opt/venv/bin/pip install --no-cache-dir --index-url "$PIP_INDEX_URL" -r requirements.txt
 
 #####################
